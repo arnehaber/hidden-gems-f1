@@ -84,7 +84,8 @@ module KeyInput
 
             VK = {
                 left:   0x25, up:    0x26, right: 0x27, down: 0x28,
-                home:   0x24, end_:  0x23, space: 0x20, q: 0x51
+                home:   0x24, end_:  0x23, space: 0x20, q: 0x51,
+                esc:    0x1B
             }.freeze
 
             KEYMAP = {
@@ -96,6 +97,7 @@ module KeyInput
                 VK[:end_]   => 'end',
                 VK[:space]  => ' ',
                 VK[:q]      => 'q',
+                VK[:esc]    => 'esc',
             }.freeze
 
             REPEATABLE = %w[left right up down home end].freeze
@@ -589,6 +591,11 @@ class Runner
         Unicode::DisplayWidth.of(str.to_s, emoji: true, ambwidth: 1)
     end
 
+    def sanitize_emoji(str)
+        # Remove all characters with a width <= 0 from the string
+        str.each_grapheme_cluster.select { |g| vwidth(g) > 0 }.join
+    end
+
     def trim_ansi_to_width(str, max_width)
         ss      = StringScanner.new(str)
         out     = +""
@@ -912,7 +919,7 @@ class Runner
         if File.exist?(yaml_path)
             info = YAML.load(File.read(yaml_path))
             @bots.last[:name] = info['name'] if info['name'].is_a?(String)
-            @bots.last[:emoji] = info['emoji'] if info['emoji'].is_a?(String)
+            @bots.last[:emoji] = sanitize_emoji(info['emoji'].to_s) if info['emoji'].is_a?(String)
             if vwidth(@bots.last[:emoji]) > 2
                 raise "Error in bot.yaml: emoji must be at most 2 characters wide (#{@bots.last[:emoji]} is #{vwidth(@bots.last[:emoji])} characters wide)"
             end
@@ -1461,7 +1468,7 @@ class Runner
                 end
                 begin
                     key = KeyInput.get_key(paused)
-                    if key == 'q'
+                    if key == 'q' || key == 'esc'
                         exit
                     elsif key == 'left'
                         @tick = [@tick - 1, 0].max
